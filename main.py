@@ -1,6 +1,6 @@
 # gain access to pygame in our code
 import pygame
-
+#hello my name is golf
 # initialize all pygame modules
 pygame.init()
 
