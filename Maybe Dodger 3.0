@@ -19,8 +19,8 @@ PLAYER_MAX_UP = 200
 
 BG_COLOR = pygame.Color("black")
 TEXT_COLOR = pygame.Color("white")
-ENEMY_COLOR = pygame.Color("orange")
-PLAYER_COLOR = pygame.Color("lightblue")
+ENEMY_COLOR = pygame.Color("red")
+PLAYER_COLOR = pygame.Color("white")
 
 
 # classes of the game elements
