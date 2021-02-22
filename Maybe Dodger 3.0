@@ -1,0 +1,386 @@
+import pygame
+import random
+from pygame import mixer
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 800
+# instruction of the game
+FPS = 40
+
+ENEMY_SPAWN_RATE = 4
+ENEMY_MIN_SIZE = 5
+ENEMY_MAX_SIZE = 20
+ENEMY_MIN_SPEED = 4
+ENEMY_MAX_SPEED = 15
+
+PLAYER_SPEED = 5
+PLAYER_SIZE = 12
+PLAYER_MAX_UP = 200
+
+BG_COLOR = pygame.Color("black")
+TEXT_COLOR = pygame.Color("white")
+ENEMY_COLOR = pygame.Color("orange")
+PLAYER_COLOR = pygame.Color("lightblue")
+
+
+# classes of the game elements
+class Player:
+    def __init__(self):
+        self.size = PLAYER_SIZE
+        self.speed = PLAYER_SPEED
+        self.color = PLAYER_COLOR
+        self.position = (SCREEN_WIDTH / 2, (SCREEN_HEIGHT - (SCREEN_HEIGHT / 10)))
+
+    def draw(self, surface):
+        r = self.get_rect()
+        pygame.draw.rect(surface, self.color, r)
+
+    def move(self, x, y):
+        newX = self.position[0] + x
+        newY = self.position[1] + y
+        if newX < 0 or newX > SCREEN_WIDTH - PLAYER_SIZE:
+            newX = self.position[0]
+        if newY < SCREEN_HEIGHT - PLAYER_MAX_UP or newY > SCREEN_HEIGHT - PLAYER_SIZE:
+            newY = self.position[1]
+        self.position = (newX, newY)
+
+    def get_rect(self):
+        return pygame.Rect(self.position, (self.size, self.size))
+
+    def did_hit(self, rect):
+        r = self.get_rect()
+        return r.colliderect(rect)
+
+
+class Enemy:
+    def __init__(self):
+        self.size = random.randint(ENEMY_MIN_SIZE, ENEMY_MAX_SIZE)
+        self.speed = random.randint(ENEMY_MIN_SPEED, ENEMY_MAX_SPEED)
+        self.color = ENEMY_COLOR
+        self.position = (random.randint(0, SCREEN_WIDTH - self.size), 0 - self.size)
+
+    def draw(self, surface):
+        r = self.get_rect()
+        pygame.draw.rect(surface, self.color, r)
+
+    def move(self):
+        self.position = (self.position[0], self.position[1] + self.speed)
+
+    def is_off_screen(self):
+        return self.position[1] > SCREEN_HEIGHT
+
+    def get_rect(self):
+        return pygame.Rect(self.position, (self.size, self.size))
+
+
+class Game():
+    def __init__(self):
+        pygame.init()
+        self.running, self.playing = True, False
+        self.UP_KEY, self.DOWN_KEY, self.START_KEY, self.BACK_KEY = False, False, False, False
+        self.DISPLAY_W, self.DISPLAY_H = 480, 270
+        self.display = pygame.Surface((self.DISPLAY_W, self.DISPLAY_H))
+        self.window = pygame.display.set_mode((self.DISPLAY_W, self.DISPLAY_H))
+        self.font_name = '8-BIT WONDER.TFF'
+        self.font_name = pygame.font.get_default_font()
+        self.BLACK, self.WHITE = (0, 0, 0), (250, 250, 250)
+        self.curr_menu = MainMenu(self)
+        self.options = OptionsMenu(self)
+        self.credits = CreditsMenu(self)
+
+    def load_data(self):
+        self.dir = path.dirname(__file__)
+        with open(path.join(self.dir, HS_FILE),'w') as f:
+           try:
+               self.highscore = int(f.read())
+           except:
+                self.highscore = 0
+
+    def game_loop(self):
+        while self.playing:
+            self.check_events()
+            if self.START_KEY:
+                self.playing = False
+            clock = pygame.time.Clock()
+            screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+            pygame.display.set_caption("Maybe dodger")
+
+            surface = pygame.Surface(screen.get_size())
+            surface = surface.convert()
+
+            world = World()
+
+            font = pygame.font.SysFont("monospace", 42)
+
+            running = True
+
+            while running:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                        pygame.quit()
+                    elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        running = False
+                    elif event.type == pygame.KEYDOWN and event.key == ord("r"):
+                        world.reset()
+                    else:
+                        world.handle_keys(event)
+
+                clock.tick(FPS)
+
+                if not world.is_game_over():
+                    world.update()
+
+                surface.fill(BG_COLOR)
+
+                world.draw(surface)
+
+                screen.blit(surface, (0, 0))
+                text = font.render("score {0}".format(world.score), 1, TEXT_COLOR)
+                screen.blit(text, (5, 10))
+                text = font.render("High score {0}".format(world.score), 1, TEXT_COLOR)
+                screen.blit(text, (5, 40))
+                if world.is_game_over():
+                    go = font.render("Uh oh.. Game Over", 1, TEXT_COLOR)
+                    screen.blit(go, (SCREEN_WIDTH / 3 - 30, SCREEN_HEIGHT / 2))
+                    hr = font.render("Hit R to restart", 1, TEXT_COLOR)
+                    screen.blit(hr, (SCREEN_WIDTH / 3, SCREEN_HEIGHT / 2 + 45))
+                pygame.display.update()
+
+    def check_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running, self.playing = False, False
+                self.curr_menu.run_display = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    self.START_KEY = True
+                    button_sound = mixer.Sound("musicc.mp3")
+                    button_sound.play()
+                if event.key == pygame.K_BACKSPACE:
+                    self.BACK_KEY = True
+                if event.key == pygame.K_DOWN:
+                    self.DOWN_KEY = True
+                if event.key == pygame.K_UP:
+                    self.UP_KEY = True
+
+    def reset_keys(self):
+        self.UP_KEY, self.DOWN_KEY, self.START_KEY, self.BACK_KEY = False, False, False, False
+
+    def draw_text(self, text, size, x, y):
+        font = pygame.font.Font(self.font_name, size)
+        text_surface = font.render(text, True, self.WHITE)
+        text_rect = text_surface.get_rect()
+        text_rect.center = (x, y)
+        self.display.blit(text_surface, text_rect)
+
+
+class Menu():
+    def __init__(self, game):
+        self.game = game
+        self.mid_w, self.mid_h = self.game.DISPLAY_W / 2, self.game.DISPLAY_H / 2
+        self.run_display = True
+        self.cursor_rect = pygame.Rect(0, 0, 20, 20)
+        self.offset = - 100
+
+    def draw_cursor(self):
+        self.game.draw_text('*', 15, self.cursor_rect.x, self.cursor_rect.y)
+
+    def blit_screen(self):
+        self.game.window.blit(self.game.display, (0, 0))
+        pygame.display.update()
+        self.game.reset_keys()
+
+
+class MainMenu(Menu):
+    def __init__(self, game):
+        Menu.__init__(self, game)
+        self.state = "Start"
+        self.startx, self.starty = self.mid_w, self.mid_h + 30
+        self.optionsx, self.optionsy = self.mid_w, self.mid_h + 50
+        self.creditsx, self.creditsy = self.mid_w, self.mid_h + 70
+        self.cursor_rect.midtop = (self.startx + self.offset, self.starty)
+
+    def display_menu(self):
+        self.run_display = True
+        while self.run_display:
+            self.game.check_events()
+            self.check_input()
+            self.game.display.fill(self.game.BLACK)
+            self.game.draw_text('Maybe Dodger', 20, self.game.DISPLAY_W / 2, self.game.DISPLAY_H / 2 - 20)
+            self.game.draw_text("Start Game", 20, self.startx, self.starty)
+            self.game.draw_text("Options", 20, self.optionsx, self.optionsy)
+            self.game.draw_text("Credits", 20, self.creditsx, self.creditsy)
+            self.draw_cursor()
+            self.blit_screen()
+
+    def move_cursor(self):
+        if self.game.DOWN_KEY:
+            if self.state == 'Start':
+                self.cursor_rect.midtop = (self.optionsx + self.offset, self.optionsy)
+                self.state = 'Options'
+            elif self.state == 'Options':
+                self.cursor_rect.midtop = (self.creditsx + self.offset, self.creditsy)
+                self.state = 'Credits'
+            elif self.state == 'Credits':
+                self.cursor_rect.midtop = (self.startx + self.offset, self.starty)
+                self.state = 'Start'
+        elif self.game.UP_KEY:
+            if self.state == 'Start':
+                self.cursor_rect.midtop = (self.creditsx + self.offset, self.creditsy)
+                self.state = 'Credits'
+            elif self.state == 'Options':
+                self.cursor_rect.midtop = (self.startx + self.offset, self.starty)
+                self.state = 'Start'
+            elif self.state == 'Credits':
+                self.cursor_rect.midtop = (self.optionsx + self.offset, self.optionsy)
+                self.state = 'Options'
+
+    def check_input(self):
+        self.move_cursor()
+        if self.game.START_KEY:
+            if self.state == 'Start':
+                self.game.playing = True
+            elif self.state == 'Options':
+                self.game.curr_menu = self.game.options
+            elif self.state == 'Credits':
+                self.game.curr_menu = self.game.credits
+            self.run_display = False
+
+
+class OptionsMenu(Menu):
+    def __init__(self, game):
+        Menu.__init__(self, game)
+        self.state = 'Volume'
+        self.volx, self.voly = self.mid_w, self.mid_h + 20
+        self.controlsx, self.controlsy = self.mid_w, self.mid_h + 40
+        self.cursor_rect.midtop = (self.volx + self.offset, self.voly)
+
+    def display_menu(self):
+        self.run_display = True
+        while self.run_display:
+            self.game.check_events()
+            self.check_input()
+            self.game.display.fill((0, 0, 0))
+            self.game.draw_text('Options', 20, self.game.DISPLAY_W / 2, self.game.DISPLAY_H / 2 - 30)
+            self.game.draw_text("Volume", 15, self.volx, self.voly)
+            self.game.draw_text("Controls", 15, self.controlsx, self.controlsy)
+            self.draw_cursor()
+            self.blit_screen()
+
+    def check_input(self):
+        if self.game.BACK_KEY:
+            self.game.curr_menu = self.game.main_menu
+            self.run_display = False
+        elif self.game.UP_KEY or self.game.DOWN_KEY:
+            if self.state == 'Volume':
+                self.state = 'Controls'
+                self.cursor_rect.midtop = (self.controlsx + self.offset, self.controlsy)
+            elif self.state == 'Controls':
+                self.state = 'Volume'
+                self.cursor_rect.midtop = (self.volx + self.offset, self.voly)
+        elif self.game.START_KEY:
+            # TO-DO: Create a Volume Menu and a Controls Menu
+            pass
+
+
+class CreditsMenu(Menu):
+    def __init__(self, game):
+        Menu.__init__(self, game)
+
+    def display_menu(self):
+        self.run_display = True
+        while self.run_display:
+            self.game.check_events()
+            if self.game.START_KEY or self.game.BACK_KEY:
+                self.game.curr_menu = self.game.main_menu
+                self.run_display = False
+            self.game.display.fill(self.game.BLACK)
+            self.game.draw_text('Credits', 20, self.game.DISPLAY_W / 2, self.game.DISPLAY_H / 2 - 20)
+            self.game.draw_text('Made by Golf', 15, self.game.DISPLAY_W / 2, self.game.DISPLAY_H / 2 + 10)
+            self.blit_screen()
+
+
+class World:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.player = Player()
+        self.enemies = []
+        self.gameOver = False
+        self.score = 0
+        self.enemy_counter = 0
+        self.moveUp = False
+        self.moveDown = False
+        self.moveLeft = False
+        self.moveRight = False
+
+    def is_game_over(self):
+        return self.gameOver
+
+    def update(self):
+        self.score += 1
+
+        if self.moveUp:
+            self.player.move(0, -PLAYER_SPEED)
+        if self.moveDown:
+            self.player.move(0, PLAYER_SPEED)
+        if self.moveLeft:
+            self.player.move(-PLAYER_SPEED, 0)
+        if self.moveRight:
+            self.player.move(PLAYER_SPEED, 0)
+
+        for e in self.enemies:
+            e.move()
+            if self.player.did_hit(e.get_rect()):
+                self.gameOver = True
+            if e.is_off_screen():
+                self.enemies.remove(e)
+
+        self.enemy_counter += 1
+        if self.enemy_counter >= ENEMY_SPAWN_RATE:
+            self.enemy_counter = 0
+            self.enemies.append(Enemy())
+
+    def draw(self, surface):
+        self.player.draw(surface)
+        for e in self.enemies:
+            e.draw(surface)
+
+    def handle_keys(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                self.moveUp = True
+            if event.key == pygame.K_DOWN:
+                self.moveDown = True
+            if event.key == pygame.K_LEFT:
+                self.moveLeft = True
+            if event.key == pygame.K_RIGHT:
+                self.moveRight = True
+
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_UP:
+                self.moveUp = False
+            if event.key == pygame.K_DOWN:
+                self.moveDown = False
+            if event.key == pygame.K_LEFT:
+                self.moveLeft = False
+            if event.key == pygame.K_RIGHT:
+                self.moveRight = False
+
+
+# game loop
+def run():
+    pygame.init()
+
+    g = Game()
+
+    while g.running:
+        g.curr_menu.display_menu()
+        g.game_loop()
+
+
+if __name__ == '__main__':
+    run()
+    pygame.quit()
